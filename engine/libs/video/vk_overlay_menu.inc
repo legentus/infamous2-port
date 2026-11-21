@@ -714,7 +714,14 @@ static void page_mods(Rows& R)
       mrow_toggle(R, "skipintro", "Skip intro movie", on, [](bool v) {
           ps3_setting_apply("PS3_SKIP_INTRO", v ? "1" : "0"); extra_set("PS3_SKIP_INTRO", v ? "1" : "0"); })
           .d("No splash movie at start: the game goes straight to the title screen.").ex("PS3_SKIP_INTRO")
-          .wh(on != at_start ? WH_PENDING : WH_RESTART); }
+          .wh(on != at_start ? WH_PENDING : WH_RESTART);
+      static const bool warn_start = [] { const char* w = getenv("PS3_SKIP_WARNING"); return w && w[0] == '1'; }();
+      const char* w = getenv("PS3_SKIP_WARNING");
+      const bool warn = w && w[0] == '1';
+      mrow_toggle(R, "skipwarn", "Skip Epileptic Warning", warn, [](bool v) {
+          ps3_setting_apply("PS3_SKIP_WARNING", v ? "1" : "0"); extra_set("PS3_SKIP_WARNING", v ? "1" : "0"); })
+          .d("No epilepsy warning screen at start either.").ex("PS3_SKIP_WARNING").ind().off(!on)
+          .wh(warn != warn_start ? WH_PENDING : WH_RESTART); }
     mrow_action(R, "folder", "Mods folder", "Open", [] {
 #ifdef _WIN32
                     ps3_game_mods_open_folder();

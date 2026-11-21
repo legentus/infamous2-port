@@ -1,17 +1,21 @@
 From: legentus <129329825+legentus@users.noreply.github.com>
-Subject: [PATCH] skip the intro movie: PS3_SKIP_INTRO=1 (F2 > Mods > Skip intro movie)
+Subject: [PATCH] skip the intro: PS3_SKIP_INTRO=1, PS3_SKIP_WARNING=1 (F2 > Mods)
 
 The splash movie (splash_america.bik etc., about 12 s) is the only movie before
 the title screen. The game builds its name from the string "splash_%s" at
 0x007CDBA8 (EBOOT 1.04); with PS3_SKIP_INTRO=1 its first letter is changed at
-load, so the movie it asks for does not exist and the game goes straight to the
-title. The string is checked first, so another EBOOT is left alone.
+load, so the movie it asks for does not exist and the game goes straight on.
+
+With PS3_SKIP_WARNING=1 as well, the epilepsy warning step of the boot
+sequence (func_0037E464: waits until 5 s have passed on the game clock) gets
+0 instead of its 5.0f (0x009AC690, its constant pool), so it moves on at once.
+Every write is checked against the EBOOT's bytes first.
 
 diff --git a/game_patches.cpp b/game_patches.cpp
-index de16cf4..c8872e0 100644
+index de16cf4..e42346c 100644
 --- a/game_patches.cpp
 +++ b/game_patches.cpp
-@@ -94,8 +94,31 @@ bool apply_one(const std::string& type, uint32_t addr, const std::string& value)
+@@ -94,8 +94,51 @@ bool apply_one(const std::string& type, uint32_t addr, const std::string& value)
  
  } // namespace
  
@@ -20,8 +24,15 @@ index de16cf4..c8872e0 100644
 + * game goes straight to its title screen. The splash is the only movie before
 + * the title; the game names it from the string "splash_%s" (splash_america.bik,
 + * splash_europe.bik ...). Its first letter is changed, so the movie it asks for
-+ * does not exist and the splash ends at once. A data write like the community
-+ * patches below, checked against the string first, so another EBOOT is left alone.
++ * does not exist and the splash ends at once.
++ *
++ * PS3_SKIP_WARNING=1 as well (its sub-option, Skip Epileptic Warning): the boot
++ * sequence's warning step (func_0037E464) waits until 5 s have passed on the
++ * game's clock before it moves on; that 5.0f, read from the step's constant pool,
++ * is made 0, so the step moves on at its first check.
++ *
++ * Data writes like the community patches below, each checked first, so another
++ * EBOOT is left alone.
 + */
 +static void infamous2_skip_intro(void)
 +{
@@ -35,6 +46,19 @@ index de16cf4..c8872e0 100644
 +    }
 +    p[0] = 'x';
 +    fprintf(stderr, "[patch] skip intro: the splash movie is skipped (PS3_SKIP_INTRO=1)\n");
++
++    const char* w = getenv("PS3_SKIP_WARNING");
++    if (!w || w[0] != '1') return;
++    static const uint32_t kNameSlot = 0x009AC66Cu;     /* the same pool's pointer to "splash_%s" */
++    static const uint32_t kWarnTime = 0x009AC690u;     /* the warning step's 5.0f */
++    auto be32 = [](const uint8_t* q) { return (uint32_t)q[0] << 24 | (uint32_t)q[1] << 16 | (uint32_t)q[2] << 8 | q[3]; };
++    uint8_t* t = vm_base + kWarnTime;
++    if (be32(vm_base + kNameSlot) != kSplashName || be32(t) != 0x40A00000u) {
++        fprintf(stderr, "[patch] skip warning: the warning's 5 s is not where this EBOOT keeps it; not skipped\n");
++        return;
++    }
++    t[0] = t[1] = t[2] = t[3] = 0;   /* 0.0f */
++    fprintf(stderr, "[patch] skip warning: the epilepsy warning is skipped (PS3_SKIP_WARNING=1)\n");
 +}
 +
  extern "C" void infamous2_apply_patches(const char* elf_path)
