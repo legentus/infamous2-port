@@ -1,0 +1,45 @@
+From: legentus <129329825+legentus@users.noreply.github.com>
+Subject: [PATCH] skip the intro movie: PS3_SKIP_INTRO=1 (F2 > Mods > Skip intro movie)
+
+The splash movie (splash_america.bik etc., about 12 s) is the only movie before
+the title screen. The game builds its name from the string "splash_%s" at
+0x007CDBA8 (EBOOT 1.04); with PS3_SKIP_INTRO=1 its first letter is changed at
+load, so the movie it asks for does not exist and the game goes straight to the
+title. The string is checked first, so another EBOOT is left alone.
+
+diff --git a/game_patches.cpp b/game_patches.cpp
+index de16cf4..c8872e0 100644
+--- a/game_patches.cpp
++++ b/game_patches.cpp
+@@ -94,8 +94,31 @@ bool apply_one(const std::string& type, uint32_t addr, const std::string& value)
+ 
+ } // namespace
+ 
++/*
++ * PS3_SKIP_INTRO=1 (F2 > Mods > Skip intro movie): no splash movie at start, the
++ * game goes straight to its title screen. The splash is the only movie before
++ * the title; the game names it from the string "splash_%s" (splash_america.bik,
++ * splash_europe.bik ...). Its first letter is changed, so the movie it asks for
++ * does not exist and the splash ends at once. A data write like the community
++ * patches below, checked against the string first, so another EBOOT is left alone.
++ */
++static void infamous2_skip_intro(void)
++{
++    const char* e = getenv("PS3_SKIP_INTRO");
++    if (!e || e[0] != '1' || !vm_base) return;
++    static const uint32_t kSplashName = 0x007CDBA8u;   /* "splash_%s", EBOOT 1.04 */
++    char* p = (char*)vm_base + kSplashName;
++    if (memcmp(p, "splash_%s", 10) != 0) {
++        fprintf(stderr, "[patch] skip intro: the splash movie's name is not where this EBOOT keeps it; not skipped\n");
++        return;
++    }
++    p[0] = 'x';
++    fprintf(stderr, "[patch] skip intro: the splash movie is skipped (PS3_SKIP_INTRO=1)\n");
++}
++
+ extern "C" void infamous2_apply_patches(const char* elf_path)
+ {
++    infamous2_skip_intro();
+     const char* want_env = getenv("PS3_PATCHES");
+     if (!want_env || !*want_env) return;
+     std::vector<std::string> want;

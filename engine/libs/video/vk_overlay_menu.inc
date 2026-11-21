@@ -707,6 +707,14 @@ static void page_mods(Rows& R)
       if (restart && ps3_host_can_restart())
           mrow_action(R, "restart", "Restart to apply", "Restart", [] { s_restart_ask = 1; })
               .d("Starts the game again with the mods as set (back at the title screen).").wh(WH_PENDING); }
+    /* PS3_SKIP_INTRO (game_patches.cpp): read once at start, before the game runs */
+    { static const bool at_start = [] { const char* e = getenv("PS3_SKIP_INTRO"); return e && e[0] == '1'; }();
+      const char* e = getenv("PS3_SKIP_INTRO");
+      const bool on = e && e[0] == '1';
+      mrow_toggle(R, "skipintro", "Skip intro movie", on, [](bool v) {
+          ps3_setting_apply("PS3_SKIP_INTRO", v ? "1" : "0"); extra_set("PS3_SKIP_INTRO", v ? "1" : "0"); })
+          .d("No splash movie at start: the game goes straight to the title screen.").ex("PS3_SKIP_INTRO")
+          .wh(on != at_start ? WH_PENDING : WH_RESTART); }
     mrow_action(R, "folder", "Mods folder", "Open", [] {
 #ifdef _WIN32
                     ps3_game_mods_open_folder();
